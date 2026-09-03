@@ -105,28 +105,34 @@ namespace Mango.Web.Controllers
             return View(await LoadCartDtoBasedOnLoggedInUser());
         }
 
+        /*Previous block was not returning the Cart Model,
+        hence Null Reference Exception was occuring in Checkout View.
+        Hence, we are passing the Cart Model to Checkout View. */
         [HttpPost]
         [ActionName("Checkout")]
         public async Task<IActionResult> Checkout(CartDto cartDto)
         {
             CartDto cart = await LoadCartDtoBasedOnLoggedInUser();
+
             cart.CartHeader.Name = cartDto.CartHeader.Name;
             cart.CartHeader.Email = cartDto.CartHeader.Email;
             cart.CartHeader.Phone = cartDto.CartHeader.Phone;
 
-            cart.CartHeader.Name = cartDto.CartHeader.Name;
-
             var response = await _orderService.CreateOrderAsync(cart);
 
-            OrderHeaderDto orderHeaderDto = JsonConvert.DeserializeObject<OrderHeaderDto>(Convert.ToString(response.Result));
-
-            //TODO: Bug, for same cart, order is being created repeatedly. Once order is placed, cart must be empty.    
             if (response != null && response.IsSuccess)
             {
-                //TODO: Stripe code & redirect to place order
+                OrderHeaderDto orderHeaderDto =
+                    JsonConvert.DeserializeObject<OrderHeaderDto>(
+                        Convert.ToString(response.Result));
+
+                return RedirectToAction(
+                    nameof(Confirmation),
+                    new { orderId = orderHeaderDto.Id }
+                );
             }
 
-            return View();
+            return View(cart);
         }
 
         public async Task<IActionResult> Confirmation(int orderId)
