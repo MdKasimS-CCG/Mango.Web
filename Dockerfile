@@ -7,15 +7,13 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
-COPY ["Frontend/Mango.Web/Mango.Web.csproj", "Frontend/Mango.Web/"]
-RUN dotnet restore "./Frontend/Mango.Web/Mango.Web.csproj"
+COPY ["Mango.Web.csproj", "./"]
+RUN dotnet restore "./Mango.Web.csproj"
 COPY . .
-WORKDIR "/src/Frontend/Mango.Web"
 RUN dotnet build "./Mango.Web.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
