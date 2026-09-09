@@ -3,7 +3,7 @@ name: Mango.Web CI/CD
 on:
   push:
     branches:
-      - 'feature/nesan-mango-web-*'
+      - 'feature/*'
 
   pull_request:
     branches:
