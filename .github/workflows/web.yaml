@@ -70,7 +70,7 @@ jobs:
             --file Dockerfile \
             --tag ghcr.io/mdkasims-ccg/mango-web:${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }} \
             --load \
-            --cache-from type=gha \ 
+            --cache-from type=gha \
             --cache-to type=gha,mode=max \
             .
 
