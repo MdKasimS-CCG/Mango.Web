@@ -5,10 +5,12 @@ on:
     branches:
       - 'feature/*'
       - main
+      - master
 
   pull_request:
     branches:
       - main
+      - master
     types: 
      - opened
      - synchronize
@@ -76,7 +78,7 @@ jobs:
 
       # Login to GitHub Container Registry
       - name: Login to GHCR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -85,7 +87,7 @@ jobs:
 
       # Push Docker image to GHCR
       - name: Push Docker image
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         run: |
           docker push \
             ghcr.io/mdkasims-ccg/mango-web:${{ github.sha }}
