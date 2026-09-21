@@ -2,8 +2,74 @@ using Mango.Web.Service;
 using Mango.Web.Service.IService;
 using Mango.Web.Utility;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using DotNetEnv;
+
+// Determine whether the application is running inside a Docker container.
+bool isRunningInContainer =
+    Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+
+// The HTTP profile does not automatically load .env,
+// so load it before creating the WebApplicationBuilder.
+if (!isRunningInContainer)
+{
+    Env.Load();
+}
 
 var builder = WebApplication.CreateBuilder(args);
+
+string configurationPrefix = isRunningInContainer
+    ? "Docker"
+    : "Http";
+
+var webOptions = new WebOptions
+{
+    AuthAPI =
+        builder.Configuration[
+            $"{configurationPrefix}:ServiceUrls:AuthAPI"]
+        ?? string.Empty,
+
+    ProductAPI =
+        builder.Configuration[
+            $"{configurationPrefix}:ServiceUrls:ProductAPI"]
+        ?? string.Empty,
+
+    ShoppingCartAPI =
+        builder.Configuration[
+            $"{configurationPrefix}:ServiceUrls:ShoppingCartAPI"]
+        ?? string.Empty,
+
+    CouponAPI =
+        builder.Configuration[
+            $"{configurationPrefix}:ServiceUrls:CouponAPI"]
+        ?? string.Empty,
+
+    OrderAPI =
+        builder.Configuration[
+            $"{configurationPrefix}:ServiceUrls:OrderAPI"]
+        ?? string.Empty
+};
+
+builder.Services.AddSingleton(
+    Microsoft.Extensions.Options.Options.Create(webOptions));
+
+builder.Configuration.AddInMemoryCollection(
+    new Dictionary<string, string?>
+    {
+        ["ServiceUrls:AuthAPI"] =
+            webOptions.AuthAPI,
+
+        ["ServiceUrls:ProductAPI"] =
+            webOptions.ProductAPI,
+
+        ["ServiceUrls:ShoppingCartAPI"] =
+            webOptions.ShoppingCartAPI,
+
+        ["ServiceUrls:CouponAPI"] =
+            webOptions.CouponAPI,
+
+        ["ServiceUrls:OrderAPI"] =
+            webOptions.OrderAPI
+    });
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -30,11 +96,21 @@ builder.Services.AddHttpClient<ICartService, CartService>();
 builder.Services.AddHttpClient<IProductService, ProductService>();
 builder.Services.AddHttpClient<ICouponService, CouponService>();
 builder.Services.AddHttpClient<IAuthService, AuthService>();
-SD.CouponAPIBase = builder.Configuration["ServiceUrls:CouponAPI"];
-SD.AuthAPIBase = builder.Configuration["ServiceUrls:AuthAPI"];
-SD.ProductAPIBase = builder.Configuration["ServiceUrls:ProductAPI"];
-SD.ShoppingCartAPIBase = builder.Configuration["ServiceUrls:ShoppingCartAPI"];
-SD.OrderAPIBase = builder.Configuration["ServiceUrls:OrderAPI"];
+
+SD.CouponAPIBase =
+    webOptions.CouponAPI;
+
+SD.AuthAPIBase =
+    webOptions.AuthAPI;
+
+SD.ProductAPIBase =
+    webOptions.ProductAPI;
+
+SD.ShoppingCartAPIBase =
+    webOptions.ShoppingCartAPI;
+
+SD.OrderAPIBase =
+    webOptions.OrderAPI;
 
 
 builder.Services.AddScoped<ITokenProvider, TokenProvider>();
@@ -78,3 +154,11 @@ app.MapControllerRoute(
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
+public class WebOptions
+{
+    public string AuthAPI { get; set; } = string.Empty;
+    public string ProductAPI { get; set; } = string.Empty;
+    public string ShoppingCartAPI { get; set; } = string.Empty;
+    public string CouponAPI { get; set; } = string.Empty;
+    public string OrderAPI { get; set; } = string.Empty;
+}
