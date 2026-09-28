@@ -105,29 +105,106 @@ namespace Mango.Web.Controllers
             return View(await LoadCartDtoBasedOnLoggedInUser());
         }
 
+
         [HttpPost]
         [ActionName("Checkout")]
+        [Authorize]
         public async Task<IActionResult> Checkout(CartDto cartDto)
         {
             CartDto cart = await LoadCartDtoBasedOnLoggedInUser();
+
+            // 1. Validate cart
+            if (cart.CartHeader == null ||
+                cart.CartDetails == null ||
+                !cart.CartDetails.Any())
+            {
+                TempData["error"] = "Your cart is empty.";
+                return RedirectToAction(nameof(CartIndex));
+            }
+
+            // 2. Update checkout details
             cart.CartHeader.Name = cartDto.CartHeader.Name;
             cart.CartHeader.Email = cartDto.CartHeader.Email;
             cart.CartHeader.Phone = cartDto.CartHeader.Phone;
 
-            cart.CartHeader.Name = cartDto.CartHeader.Name;
-
+            // 3. Create order
             var response = await _orderService.CreateOrderAsync(cart);
 
-            OrderHeaderDto orderHeaderDto = JsonConvert.DeserializeObject<OrderHeaderDto>(Convert.ToString(response.Result));
-
-            //TODO: Bug, for same cart, order is being created repeatedly. Once order is placed, cart must be empty.    
-            if (response != null && response.IsSuccess)
+            if (response == null || !response.IsSuccess)
             {
-                //TODO: Stripe code & redirect to place order
+                TempData["error"] =
+                    response?.Message ?? "Unable to create your order.";
+
+                return RedirectToAction(nameof(CartIndex));
             }
 
-            return View();
+            // 4. Deserialize the created order
+            OrderHeaderDto? orderHeaderDto =
+                JsonConvert.DeserializeObject<OrderHeaderDto>(
+                    JsonConvert.SerializeObject(response.Result)
+                );
+
+            if (orderHeaderDto == null || orderHeaderDto.Id <= 0)
+            {
+                TempData["error"] =
+                    "Order was submitted, but the order ID could not be retrieved.";
+
+                return RedirectToAction(nameof(CartIndex));
+            }
+
+            // 5. Get logged-in user's ID
+            var userId = User.Claims
+                .FirstOrDefault(u => u.Type == JwtRegisteredClaimNames.Sub)
+                ?.Value;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                TempData["warning"] =
+                    "Order was created, but the cart could not be cleared.";
+
+                return RedirectToAction(
+                    nameof(Confirmation),
+                    new { orderId = orderHeaderDto.Id }
+                );
+            }
+
+            // 6. Clear cart
+            try
+            {
+                var clearCartResponse =
+                    await _cartService.ClearCartAsync(userId);
+
+                if (clearCartResponse == null ||
+                    !clearCartResponse.IsSuccess)
+                {
+                    TempData["warning"] =
+                        "Order was created, but your cart could not be cleared.";
+                }
+            }
+            catch (Exception)
+            {
+                TempData["warning"] =
+                    "Order was created, but your cart could not be cleared.";
+            }
+
+            // 7. Redirect to confirmation with the actual database order ID
+            return RedirectToAction(
+                nameof(Confirmation),
+                new { orderId = orderHeaderDto.Id }
+            );
         }
+
+
+        //     OrderHeaderDto orderHeaderDto = JsonConvert.DeserializeObject<OrderHeaderDto>(Convert.ToString(response.Result));
+
+        //     //TODO: Bug, for same cart, order is being created repeatedly. Once order is placed, cart must be empty.    
+        //     if (response != null && response.IsSuccess)
+        //     {
+        //         //TODO: Stripe code & redirect to place order
+        //     }
+
+        //     return View();
+        // }
 
         public async Task<IActionResult> Confirmation(int orderId)
         {
