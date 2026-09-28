@@ -12,7 +12,7 @@ Mango.Web is the browser-facing ASP.NET Core MVC application for the Mango shopp
 - [Prerequisites](#prerequisites)
 - [Run locally](#run-locally)
 - [Run with Docker](#run-with-docker)
-- [Run with Docker using any terminal] (#run-via-any-terminal)
+- [Docker Setup Commands - Can Be Used Via Any Terminal](#run-docker-containers---via-any-terminal)
 - [Run in the full Mango Compose stack](#run-in-the-full-mango-compose-stack)
 - [CI/CD](#cicd)
 - [Application pages and authentication](#application-pages-and-authentication)
