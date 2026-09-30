@@ -1,0 +1,93 @@
+# Enterprise Software Landscape → Technical Operations → Portfolio Map
+
+## First, the Correction You Asked For
+Two things in your list don't sit at the same level as the rest, worth untangling before the taxonomy:
+
+1. **OS ≠ ERP/MES/PLM.** If you meant literal *Operating System*, that's **systems software** (kernel, scheduler, memory management, drivers) — a different engineering discipline entirely (C/C++/Rust, low-level), unrelated to the Clean Architecture/DDD/.NET enterprise track you're actually building. If you meant something ERP-adjacent, you were probably reaching for **OMS — Order Management System**, a real and very common category. I've used OMS below instead.
+2. **PDM is not a sibling of PLM — it's a component inside it.** PDM is narrowly the engineering *file vault*: CAD file check-in/check-out, versioning, metadata search. PLM is the broader business process wrapped around that vault: engineering change orders, lifecycle stage-gates, BOM management, cross-department approval — PLM contains PDM, not the other way around.
+
+---
+
+## The Landscape, in Four Meta-Categories
+
+| Meta-Category | What it means | Relevant to your track? |
+|---|---|---|
+| **A. Enterprise Business Applications** | Domain-specific systems managing one part of how a company runs | **Yes — this is your zone** |
+| **B. Customer-Facing / Commerce Platforms** | Systems a company's *customers* interact with directly | Yes |
+| **C. Data & Analytics / Integration Platforms** | Systems that move, reconcile, or make sense of data from other systems | Yes — and currently your biggest portfolio gap (see bottom) |
+| **D. Systems & Infrastructure Software** | OS, DBMS engines, hypervisors, compilers | No — different discipline, flagged only so you don't accidentally scope a portfolio project here |
+
+---
+
+## A. Enterprise Business Applications
+
+| Category | What It Manages | Dominant Technical Operations |
+|---|---|---|
+| **ERP** | Core financials, procurement, inventory, manufacturing — the backbone system of record | Wide relational model spanning many bounded contexts; RBAC across departments; scheduled/batch jobs (period-end close); approval workflows; heavy reporting; audit trail |
+| **CRM** | Sales pipeline, contacts, support cases | Pipeline state machines; activity timelines; bulk import/export; search/filter at scale; scheduled reminders |
+| **MES** | Real-time shop-floor execution — work orders, machine data, scrap/yield | Event-driven/real-time ingestion; state machines (work-order lifecycle); IoT/PLC integration; time-series data |
+| **PLM** | Product design & engineering lifecycle, concept through retirement | Hierarchical versioning (BOM trees); engineering-change-order workflows; wraps PDM; cross-functional access control |
+| **PDM** | Engineering CAD/document vault *(component of PLM)* | File check-in/check-out & versioning; metadata search over large binaries; fine-grained access control |
+| **SCM / WMS** | Supply chain, warehouse operations, inventory movement | Inventory transaction consistency (the same shape as your inventory-transfer problem); barcode/QR workflows; batch/wave processing |
+| **TMS** | Freight/transportation planning | Route optimization; carrier/EDI integration; real-time tracking events |
+| **EAM / CMMS** | Physical asset maintenance (machines, facilities) | Scheduled/preventive-maintenance jobs; work-order state machines; sensor/IoT ingestion |
+| **QMS** | Quality control, non-conformance, audits, CAPA | Approval/audit workflows; compliance reporting; immutable audit trail |
+| **LIMS** | Lab sample tracking & testing | State machines (sample lifecycle); instrument data ingestion; chain-of-custody trail |
+| **HRMS / HCM** | Employee lifecycle, payroll, benefits | Effective-dated/temporal data (your `EmployeeDepartmentHistory` pattern); approval workflows; sensitive-data access control |
+| **OMS** | Order lifecycle across channels — capture, fulfillment, returns | Order state machines; inventory allocation/reservation; fan-out integration to warehouse/shipping/payment |
+| **ITSM** | IT ticketing — incidents, changes, problems | Ticket state machines; SLA escalation timers; knowledge-base search |
+| **BPM** | General-purpose workflow/process orchestration | Configurable state machines; rules engines; human-task assignment |
+| **DMS** | General document storage/retrieval (not engineering-specific) | Versioning; full-text search/indexing; retention policy |
+
+---
+
+## B. Customer-Facing / Commerce Platforms
+
+| Category | What It Manages | Dominant Technical Operations |
+|---|---|---|
+| **E-commerce** | Catalog, cart, checkout | Inventory reservation under concurrency; payment integration; faceted search |
+| **Marketplace / Booking** (your CineComplex) | Multi-party transactions (buyer/seller/platform) | Concurrency control on scarce resources; multi-tenant partner management; event-driven fulfillment saga |
+| **Subscription / Billing (CPQ)** | Recurring billing, plan changes, proration | Scheduled billing jobs; effective-dated plan changes; payment retry/dunning logic |
+
+---
+
+## C. Data & Analytics / Integration
+
+| Category | What It Manages | Dominant Technical Operations |
+|---|---|---|
+| **BI / Reporting** | Dashboards, KPIs | Pre-aggregation; caching; scheduled refresh |
+| **MDM** | Single source of truth across systems | Entity matching/deduplication; cross-system sync; conflict resolution |
+| **ETL / Integration Platforms** | Moving/transforming data between systems | Batch + streaming pipelines; schema mapping; idempotent reprocessing |
+
+---
+
+## Cross-Cutting Technical Operations (What You're Actually Showcasing)
+This is the list that matters most for portfolio design — pick a *domain* mainly because it forces the *operation* you want to prove you can do.
+
+| Technical Operation | Demonstrates | Best-fit Categories |
+|---|---|---|
+| Auth & Multi-Tenancy (RBAC/OIDC, org-scoped isolation) | Security architecture | ERP, PLM, CRM, any multi-partner platform |
+| Bulk/Batch Processing | Reliability at scale | ERP (period close), SCM, HRMS payroll |
+| ETL / Data Integration | Cross-system data movement | MDM, BI, any legacy-modernization project |
+| Workflow / State Machine Engines | Modeling process, not just CRUD | PLM (ECOs), QMS, ITSM, OMS, MES |
+| Event-Driven / Real-Time Processing | Distributed systems competence | MES, EAM/IoT, OMS, marketplace platforms |
+| **Concurrency & Reservation Control** | The single most interview-relevant class | E-commerce, booking/marketplace, WMS, OMS |
+| Document/File Versioning | Structured content management | PDM, DMS, PLM |
+| Search & Indexing | Query performance at scale | CRM, DMS, e-commerce catalog |
+| Audit & Compliance Trail | Regulated-industry readiness | QMS, LIMS, HRMS, financial ERP |
+| Effective-Dated / Temporal Data | Correctly modeling "what was true when" | HRMS, PLM (BOM revisions), pricing history |
+
+---
+
+## Tying This Back to Your Two Stated Portfolio Angles
+
+**"New frontends to an existing shared domain model"** → This is API-composition/MDM thinking: one well-modeled backend, several front-end experiences for different personas, each reading the *same* domain through a purpose-shaped API. **You're already doing this** — AdventureWorks (ERP-shaped) with React/Angular/Blazor frontends is exactly this pattern.
+
+**"Rewrite an existing API with CQRS/DDD/Clean Architecture"** → Legacy-modernization framing. Strongest when the domain has a genuinely messy reputation to begin with (ERP, MES) so the "before/after" contrast is real, not staged.
+
+### What you're already covering, and the one real gap
+- **AdventureWorks** → ERP-shaped, "one domain many frontends" ✔
+- **CineComplex** → Marketplace/booking, concurrency + event-driven saga ✔
+- **Gap: ETL/MDM.** Neither project currently touches cross-system data integration — arguably the single most common real-world enterprise task, and absent from your portfolio. Two ways to close it, either fits in a weekend-sized project:
+  1. **CQRS/DDD rewrite artifact:** take a small, deliberately-naive CRUD app (e.g., a QMS-lite "non-conformance tracker" or a PLM-lite "engineering change order" tracker), build it twice — v1 naive CRUD, v2 refactored to CQRS+DDD+Clean Architecture — with a README documenting the before/after diff. This *proves* the pattern's value rather than just using it, which is a stronger interview artifact than either project alone.
+  2. **MDM/ETL project:** a small sync service reconciling two disparate schemas (e.g., AdventureWorks + a mock external CRM) into one canonical read model — directly exercises the ETL/MDM row above, which nothing else in your portfolio currently does.
