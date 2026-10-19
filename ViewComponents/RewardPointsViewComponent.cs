@@ -1,5 +1,7 @@
 using Mango.Web.Service.IService;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using Mango.Web.Models;
 using System.Security.Claims;
 
 namespace Mango.Web.ViewComponents
@@ -26,14 +28,47 @@ namespace Mango.Web.ViewComponents
             if (string.IsNullOrWhiteSpace(userId))
                 return Content(string.Empty);
 
-            var resp = await _rewardsService.GetTotalPointsAsync(userId);
-            if (resp == null || !resp.IsSuccess)
+            var totalResp = await _rewardsService.GetTotalPointsAsync(userId);
+            if (totalResp == null || !totalResp.IsSuccess)
                 return Content(string.Empty);
 
-            // Result is expected to be a numeric total
-            var total = resp.Result?.ToString() ?? "0";
+            var historyResp = await _rewardsService.GetRewardsForUserAsync(userId);
+            if (historyResp == null || !historyResp.IsSuccess)
+                return Content(string.Empty);
 
-            return View("Default", total);
+            int total = 0;
+            try
+            {
+                total = JsonConvert.DeserializeObject<int>(JsonConvert.SerializeObject(totalResp.Result));
+            }
+            catch
+            {
+                total = 0;
+            }
+
+            var recent = new List<RewardDto>();
+            try
+            {
+                recent = JsonConvert.DeserializeObject<List<RewardDto>>(JsonConvert.SerializeObject(historyResp.Result)) ?? new List<RewardDto>();
+            }
+            catch
+            {
+                recent = new List<RewardDto>();
+            }
+
+            // Exclude entries with 0 points to avoid showing irrelevant rows
+            var filteredRecent = recent.Where(r => r.PointsEarned > 0)
+                                     .OrderByDescending(r => r.RewardsDate)
+                                     .Take(5)
+                                     .ToList();
+
+            var model = new RewardPointsViewModel
+            {
+                TotalPoints = total,
+                RecentRewards = filteredRecent
+            };
+
+            return View("Default", model);
         }
     }
 }
