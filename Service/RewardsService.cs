@@ -9,22 +9,13 @@ namespace Mango.Web.Service
         private readonly IBaseService _baseService;
         public RewardsService(IBaseService baseService) => _baseService = baseService;
 
-        public async Task<ResponseDto?> GetTotalPointsAsync(string userId)
-        {
-            return await _baseService.SendAsync(new RequestDto()
-            {
-                ApiType = SD.ApiType.GET,
-                Url = SD.RewardAPIBase + "/api/rewards/user/" + userId + "/total"
-            });
-        }
-
-        public async Task<ResponseDto?> GetRewardsForUserAsync(string userId)
+        public async Task<ResponseDto?> GetRewardsForUserAsync(string userId, CancellationToken cancellationToken = default)
         {
             return await _baseService.SendAsync(new RequestDto()
             {
                 ApiType = SD.ApiType.GET,
                 Url = SD.RewardAPIBase + "/api/rewards/user/" + userId
-            });
+            }, cancellationToken: cancellationToken);
         }
     }
 }

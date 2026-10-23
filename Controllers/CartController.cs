@@ -16,10 +16,12 @@ namespace Mango.Web.Controllers
     {
         private ICartService _cartService;
         private IOrderService _orderService;
-        public CartController(ICartService cartService, IOrderService orderService)
+        private readonly ILogger<CartController> _logger;
+        public CartController(ICartService cartService, IOrderService orderService, ILogger<CartController> logger)
         {
             _cartService = cartService;
             _orderService = orderService;
+            _logger = logger;
         }
 
         [Authorize]
@@ -109,8 +111,20 @@ namespace Mango.Web.Controllers
         [HttpPost]
         [ActionName("Checkout")]
         [Authorize]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> Checkout(CartDto cartDto)
         {
+            // Validate the posted checkout details. A POST without the form
+            // fields binds CartHeader to null.
+            if (cartDto?.CartHeader == null ||
+                string.IsNullOrWhiteSpace(cartDto.CartHeader.Name) ||
+                string.IsNullOrWhiteSpace(cartDto.CartHeader.Email) ||
+                string.IsNullOrWhiteSpace(cartDto.CartHeader.Phone))
+            {
+                TempData["error"] = "Please enter your name, email and phone number.";
+                return RedirectToAction(nameof(Checkout));
+            }
+
             CartDto cart = await LoadCartDtoBasedOnLoggedInUser();
 
             // 1. Validate cart
@@ -159,6 +173,10 @@ namespace Mango.Web.Controllers
 
             if (string.IsNullOrWhiteSpace(userId))
             {
+                _logger.LogError(
+                    "Order {OrderId} was created, but the cart was not cleared: the user has no sub claim.",
+                    orderHeaderDto.Id);
+
                 TempData["warning"] =
                     "Order was created, but the cart could not be cleared.";
 
@@ -177,12 +195,20 @@ namespace Mango.Web.Controllers
                 if (clearCartResponse == null ||
                     !clearCartResponse.IsSuccess)
                 {
+                    _logger.LogError(
+                        "Order {OrderId} was created, but clearing the cart for user {UserId} failed: {Message}",
+                        orderHeaderDto.Id, userId, clearCartResponse?.Message);
+
                     TempData["warning"] =
                         "Order was created, but your cart could not be cleared.";
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                _logger.LogError(ex,
+                    "Order {OrderId} was created, but clearing the cart for user {UserId} threw an exception.",
+                    orderHeaderDto.Id, userId);
+
                 TempData["warning"] =
                     "Order was created, but your cart could not be cleared.";
             }
@@ -193,18 +219,6 @@ namespace Mango.Web.Controllers
                 new { orderId = orderHeaderDto.Id }
             );
         }
-
-
-        //     OrderHeaderDto orderHeaderDto = JsonConvert.DeserializeObject<OrderHeaderDto>(Convert.ToString(response.Result));
-
-        //     //TODO: Bug, for same cart, order is being created repeatedly. Once order is placed, cart must be empty.    
-        //     if (response != null && response.IsSuccess)
-        //     {
-        //         //TODO: Stripe code & redirect to place order
-        //     }
-
-        //     return View();
-        // }
 
         public async Task<IActionResult> Confirmation(int orderId)
         {
