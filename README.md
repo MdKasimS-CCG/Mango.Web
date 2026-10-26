@@ -7,6 +7,8 @@ Mango.Web is the browser-facing ASP.NET Core MVC application for the Mango shopp
 - [Overview](#overview)
 - [Features](#features)
 - [Technology](#technology)
+- [Checkout behaviour](#checkout-behaviour)
+- [Reward points widget](#reward-points-widget)
 - [Architecture and integrations](#architecture-and-integrations)
 - [Configuration](#configuration)
 - [Prerequisites](#prerequisites)
@@ -30,8 +32,29 @@ The repository contains MVC controllers and views for:
 - Login and registration
 - Cart view, checkout, and confirmation
 - Coupon listing and coupon create/edit/delete pages
+- A reward-points widget in the page layout for signed-in users (see [Reward points widget](#reward-points-widget))
 
-Some flows are represented by UI/controller scaffolding and depend on backend services. Review the corresponding controller and service implementation before treating a workflow as fully operational. For example, the checkout controller contains TODOs around payment and cart clearing.
+Some flows are represented by UI/controller scaffolding and depend on backend services. Review the corresponding controller and service implementation before treating a workflow as fully operational. For example, the checkout controller still has a TODO around payment.
+
+## Checkout behaviour
+
+`POST /Cart/Checkout` is protected with an anti-forgery token (`[ValidateAntiForgeryToken]`); the checkout form includes the token. The action:
+
+1. Validates that the posted cart header is present and that name, email and phone are filled in. If not, it redirects back to Checkout with an error toast instead of failing with a null reference.
+2. Creates the order through OrderAPI.
+3. Clears the cart through ShoppingCartAPI (`ClearCart/{userId}`, which only allows the signed-in user to clear their own cart).
+4. If creating the order fails, the user is sent back to the cart with an error toast. If the order was created but the cart could not be cleared (no `sub` claim, a failed response, or an exception), the failure is logged with `ILogger` at error level and the user still reaches the confirmation page with a warning toast. The `warning` TempData value is rendered by `_Notifications.cshtml`.
+
+Mango.Web does **not** reference `Mango.MessageBus` and never talks to RabbitMQ. The emails and reward points that follow an order are produced asynchronously: OrderAPI publishes the order-created events with `Mango.MessageBus` 3.0.0, and EmailAPI and RewardAPI consume them. The "cart email" action calls ShoppingCartAPI's `EmailCartRequest`, which publishes through the same package.
+
+## Reward points widget
+
+`RewardPointsViewComponent` is rendered from the layout on every page for authenticated users, so it is built to fail soft:
+- One call to RewardAPI per refresh (`GetRewardsForUserAsync`); the total is computed from the history returned.
+- A 2-second timeout, linked to the request's cancellation token (`BaseService` accepts an optional `CancellationToken`).
+- The result is cached per user in `IMemoryCache` under `rewards:{userId}` for 5 minutes. Failures are cached for 30 seconds so an outage does not add the timeout to every page.
+- If RewardAPI is unavailable or times out, nothing is rendered and a warning is logged; the page still loads.
+- The cached total can be up to 5 minutes stale after a checkout.
 
 ## Technology
 
@@ -54,6 +77,7 @@ Mango.Web (ASP.NET Core MVC / Razor)
    |---- CouponAPI
    |---- ShoppingCartAPI
    |---- OrderAPI
+   |---- RewardAPI
 ```
 
 The service classes under `Service/` wrap backend HTTP requests. The `BaseService` is the shared request layer; specific service classes provide API-specific operations. API URLs are environment-dependent.
@@ -66,7 +90,7 @@ Copy `.env.example` to `.env` and fill in the values required for your environme
 
 Configuration includes:
 - ASP.NET Core environment and HTTP port
-- Backend API base URLs for Auth, Product, Coupon, ShoppingCart and Order
+- Backend API base URLs for Auth, Product, Coupon, ShoppingCart, Order and Reward (`Http__ServiceUrls__RewardAPI` / `Docker__ServiceUrls__RewardAPI`)
 - Authentication/token settings consumed by the application
 
 Use the exact variable names in the checked-in `.env.example`. For local execution, backend URLs should target host-published ports (for example `http://localhost:<mapped-port>`). In Compose, override them with the relevant service names, such as `http://mango-product:8080`.
@@ -148,6 +172,7 @@ Set API base URLs to the actual Compose service keys and internal ports, for exa
 - CouponAPI → `http://mango-coupon:8080`
 - ShoppingCartAPI → `http://mango-shoppingcart:8080`
 - OrderAPI → `http://mango-order:8080`
+- RewardAPI → `http://mango-reward:8080`
 
 These are examples based on the service names used in the Mango Compose setup; match them to the actual root Compose file.
 
@@ -191,5 +216,11 @@ The application uses a token provider and service-layer requests to call protect
 | Web page loads but API data is missing | Check API base URLs, API availability, and container-to-container DNS/ports. |
 | Backend requests fail only in Docker | Replace `localhost` in backend URLs with the Compose service name or appropriate host address. |
 | Login/register fails | Verify AuthAPI is running, its URL is correct, and its authentication settings are consistent with the Web application. |
-| Checkout does not complete end-to-end | Review current checkout implementation; payment and cart-clearing behavior contains TODOs in the supplied source. |
+| Checkout does not complete end-to-end | Check the Web log and the toast message; payment is still a TODO. Order creation and cart clearing go through OrderAPI and ShoppingCartAPI. |
+| Checkout POST returns 400 | The anti-forgery token is missing; submit the form from the Checkout page rather than posting directly. |
+| Checkout redirects back with "Please enter your name, email and phone number" | The posted cart header is missing a required field. |
+| "Order was created, but your cart could not be cleared" warning | The order was created but ShoppingCartAPI rejected or failed the clear (a 403 means the token's user differs from the cart owner). Check the Web and ShoppingCartAPI logs. |
+| Reward points are not shown in the header | RewardAPI is unreachable, slower than 2 seconds, or `ServiceUrls__RewardAPI` is wrong. The widget hides itself and logs a warning; after a failure it stays hidden for up to 30 seconds. |
+| Reward points are stale after checkout | The total is cached for up to 5 minutes per user. |
+| Order confirmation, but no email or reward appears | These are produced asynchronously by EmailAPI and RewardAPI from OrderAPI's messages (via `Mango.MessageBus` 3.0.0). Check their logs and the `.dlq` queues, not the Web app. |
 | Static styles/scripts are missing | Confirm the app is serving `wwwroot` assets and inspect browser developer tools for failed asset requests. |
