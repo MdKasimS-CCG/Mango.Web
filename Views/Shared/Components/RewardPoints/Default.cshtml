@@ -1,0 +1,27 @@
+@model Mango.Web.Models.RewardPointsViewModel
+
+<div class="nav-link dropdown">
+    <a class="dropdown-toggle" href="#" id="rewardDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+        Points: @Model.TotalPoints
+    </a>
+    <ul class="dropdown-menu dropdown-menu-end p-2" aria-labelledby="rewardDropdown" style="min-width:240px;">
+        <li class="dropdown-header">Recent rewards</li>
+        @if (Model.RecentRewards == null || !Model.RecentRewards.Any())
+        {
+            <li class="dropdown-item text-muted">No rewards yet</li>
+        }
+        else
+        {
+            foreach (var item in Model.RecentRewards)
+            {
+                <li class="dropdown-item d-flex justify-content-between">
+                    <span>Order #@item.OrderId</span>
+                    <span class="text-end">+@item.PointsEarned</span>
+                </li>
+                <li class="dropdown-item text-muted small">@item.RewardsDate.ToString("g")</li>
+                <li><hr class="dropdown-divider" /></li>
+            }
+            <li class="text-center"><a href="#" class="small">View all</a></li>
+        }
+    </ul>
+</div>
